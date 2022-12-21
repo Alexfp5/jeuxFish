@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="fr">
+    <head>
+        <meta charset="utf-8" />
+        <title>Poisson</title>
+
+        <style>
+             *{
+              margin: 0;
+              padding: 0;
+             box-sizing: border-box;
+              }
+            canvas {
+                cursor: pointer;
+                background-image: url('images/fondJeu.png');
+                 border: 1px solid black;
+                 margin-top: 50px;
+            }
+            body{
+                background-image: url('images/test.gif');
+                width: 100vw;
+                 height: 100vh;
+                 display: flex;
+                 justify-content: center;
+                 align-items: center;
+            }
+        </style>
+    </head>
+
+    <body>
+        <!--  la balise canvas -->
+        <canvas width="980" height="581"></canvas>
+        <script>
+            let leCanvas = document.querySelector("canvas");
+            let ctx = leCanvas.getContext("2d");
+
+            //L'objet du poissonnnage
+            let poisson = {
+                img: new Image(),
+                urlImage:"images/arretDroite.png",
+                x:0,
+                y:0,
+                largeur: 100.5,
+                hauteur: 75,
+                indexVignette:0,
+                nbVignettes:12,
+                sourceX:0,
+                vitesseX:4,
+                vitesseY:4,
+            }
+            //poisson deco au hasard
+            let hasardAnchois = 1 + Math.round(Math.random()*4);
+           
+            poisson.img.src= poisson.urlImage;
+            //Positier 
+            poisson.x = leCanvas.width/2 - poisson.largeur;
+           poisson.y = leCanvas.height/2 - poisson.hauteur;
+
+           //Enregistrer score
+           let score =0 ;
+
+           //objet pour gerer les touches
+            let fleches={
+                droite: false,
+                gauche:false,
+                haut: false,
+                bas: false,
+            }
+            // Tableau pour stocker les piranas
+            let lespiranas = [];
+            let lesBulles = [];
+            let lesAnchois = [];
+
+           document.addEventListener("keydown", presserTouche);
+            document.addEventListener("keyup", relacherTouche);
+            
+            //Fonction pour débuter le jeu au clic sur le canvas
+            leCanvas.addEventListener("click", debuterLeJeu);
+            leCanvas.addEventListener("dblclick", recommencerLeJeu);
+            
+            //On part l'actualisation du jeu avec setInterval()
+            let intervalJeuID;
+            let intervalpoissonID; 
+            let intervalpiranaID;
+            let intervalDecoID;
+            let intervalBulleID;
+            //--Mettre les élements
+            mettreUnpirana();
+            mettreUneBulle();
+//LES FONCTIONS//
+            function debuterLeJeu() {
+                console.log("Le jeu est commencé...");
+        //Afficher l'arrière-plan du jeu
+        leCanvas.style.backgroundImage="url('images/980x581.png')";
+        //Partir le setInterval pour l'actualisation de l'affichage du jeu
+         intervalJeuID = setInterval(actualiserJeu, 1000/60);
+          intervalpoissonID = setInterval(gererImageDuPoisson, 1000/6);
+          intervalpiranaID = setInterval(mettreUnpirana, 1000/2);
+          intervalBulleID = setInterval(mettreUneBulle, 1000);
+        //Enlever le gestionnaire d'événement qui débute le jeu
+        leCanvas.removeEventListener("click", debuterLeJeu);
+      }
+      function recommencerLeJeu(){
+        location.reload();
+      }
+
+      function actualiserJeu(){
+        //Effacer contenu actuel du 
+            ctx.clearRect(0,0,leCanvas.width,leCanvas.height);
+            //Afficher le score
+            //Déplacer le poisson
+            deplacerpoisson();
+            //Deplacer les piranas
+            deplacerLespiranas(); 
+            //Deplacer les bulles
+            deplacerLesBulles(); 
+            //Vérifier s'il y a une collision entre poisson et bulle
+            for(let uneBulle of lesBulles){
+                    let siCollisionPoissonEtBulle = detecterCollision(poisson, uneBulle)
+                    if(siCollisionPoissonEtBulle){
+                        
+                        let index = lesBulles.indexOf(uneBulle);
+                        lesBulles.splice(index, 1);
+                        //son
+
+                        //score
+                        score =score+1 ;
+                    }
+           } 
+           afficherLeScore();
+            //Vérifier s'il y a une collision entre poisson et pirana
+            for(let unpirana of lespiranas){
+                    let siCollisionPoissonEtpirana = detecterCollision(poisson, unpirana)
+                    if(siCollisionPoissonEtpirana){
+                        leCanvas.style.backgroundImage = "url('images/fin.jpg')"
+                        let index = lespiranas.indexOf(unpirana);
+                        lespiranas.splice(index, 1);
+                        ctx.clearRect(0, 0, leCanvas.width, leCanvas.height);
+                        clearInterval(intervalJeuID);
+                        clearInterval(intervalpoissonID);
+                        clearInterval(intervalpiranaID);
+                     } } }
+        //Fonction mettre une bulles
+        function mettreUneBulle(){
+            
+            let bulle = {
+                img: new Image(),
+                urlImage: "images/bubble.png",
+                x: entierHasard(0, leCanvas.width - 48),
+                y: -48,
+                largeur: 96,
+                hauteur: 91,
+                vitesseY: entierHasard(2, 5),
+            }
+            bulle.img.src = bulle.urlImage;
+            //Mettre cette bulle dans le tableau
+            lesBulles.push(bulle);
+        }
+         
+           //Fonction qui ajoute un pirana à tous les 1 secondes
+           function mettreUnpirana(){
+            // objet pirana
+            let pirana = {
+                img: new Image(),
+                urlImage: "images/poissonMadd.png",
+                x:-58,
+                y:  entierHasard(0, leCanvas.width - 58),
+                largeur: 99,
+                hauteur: 62,
+
+                vitesseX: entierHasard(3,5),
+            }
+            //charger l'image de ce pirana
+            pirana.img.src = pirana.urlImage;
+
+            //Mettre ce pirana dans le tableau
+            lespiranas.push(pirana);
+           }
+               //Fonction pour déplacer et dessiner le poissonnnage
+               function deplacerpoisson() {
+                //Calculer les futures positions du poisson et définir la feuille de sprites à afficher
+                if (fleches.droite) {
+                    poisson.x += poisson.vitesseX;
+                    poisson.urlImage="images/NageDroite.png";
+                    poisson.img.src=poisson.urlImage;
+                }
+                if (fleches.gauche) {
+                    poisson.x -= poisson.vitesseX;
+                    poisson.urlImage="images/NageGauche.png";
+                    poisson.img.src=poisson.urlImage;
+                }
+                if (fleches.haut) {
+                    poisson.y -= poisson.vitesseY
+                  
+                }
+                if (fleches.bas) {
+                    poisson.y += poisson.vitesseY;
+                    
+                }
+
+                //Si le poisson sort par la droite on le ramène à gauche et vice-versa
+                //À droite
+               if (poisson.x > leCanvas.width) {
+                    poisson.x = -poisson.largeur;
+                }
+                //À gauche
+                if (poisson.x < -poisson.largeur) {
+                    poisson.x = leCanvas.width;
+                }
+                //limite haut & bas
+                if (poisson.y < 0) {
+                    poisson.y = 0;
+                }
+                let yMax = leCanvas.height - poisson.hauteur;
+                if (poisson.y > yMax) {
+                    poisson.y = yMax;
+                }
+                //Dessiner le poissonnnage
+                ctx.drawImage(poisson.img, poisson.sourceX, 0, poisson.largeur, poisson.hauteur, poisson.x, poisson.y, poisson.largeur, poisson.hauteur);
+            }
+            function deplacerLespiranas(){
+                for(let unpirana of lespiranas){
+                    unpirana.x += unpirana.vitesseX;
+                    //Dessiner le pirana
+                    
+                    ctx.drawImage(unpirana.img,unpirana.x, unpirana.y);
+                    
+                     //On retire ce pirana du tableau si il dépasse les limites du canvas
+                     if (unpirana.y > leCanvas.width) {
+                        //On identifie l'index de ce pirana
+                        let index = lespiranas.indexOf(unpirana);
+                        //L'enlever du tableau des piranas
+                        lespiranas.splice(index, 1);}
+                }
+                } 
+                function deplacerLesBulles(){
+
+                    for(let uneBulle of lesBulles){
+
+                        uneBulle.y += uneBulle.vitesseY;
+
+                        ctx.drawImage(uneBulle.img, uneBulle.x,uneBulle.y);
+
+                        if (uneBulle.y > leCanvas.height){
+
+                            let index = lesBulles.indexOf(uneBulle);
+
+                            lesBulles.splice(index,1);
+
+                        }                   
+                    }
+                }
+                
+                
+            function entierHasard(nbMin, nbMax) {
+                let intervalle = nbMax - nbMin;
+                return nbMin + Math.round(Math.random() * intervalle);
+            }
+         
+
+           function gererImageDuPoisson() {
+                
+                //Incrémenter et gérer l’index de la prochaine vignette à afficher
+                poisson.indexVignette ++;
+
+                if (poisson.indexVignette >= poisson.nbVignettes) {
+                    poisson.indexVignette = 0;
+                }
+                //Définir la coordonnée sourceX de la vignette à afficher
+                poisson.sourceX = poisson.indexVignette * poisson.largeur;
+            }
+
+               //Fonction pour afficher le score
+               function afficherLeScore() {
+        //Style de base du texte
+        ctx.font = " bold 64px Calibri";
+        ctx.fillStyle = "black";
+        //Compléter les styles du texte et dessiner le score en bas et au centre du canvas
+        ctx.fillText(score, leCanvas.width/2, leCanvas.height)
+      }
+
+          
+           function presserTouche(event) {
+
+                //Enlever les comportements par défaut du navigateur
+                event.preventDefault();
+
+                //Enregistrer si une touche gauche/droite est pressée
+                if (event.keyCode == 39) {
+                    //flèche droite
+                    fleches.droite = true;
+                }
+                if (event.keyCode == 37) {
+                    //flèche gauche
+                    fleches.gauche = true;
+                }
+                if (event.keyCode == 38) {
+                    //flèche haut
+                    fleches.haut = true;
+                }
+                if (event.keyCode == 40) {
+                    //flèche bas
+                    fleches.bas = true;
+                }
+            }
+             
+        
+        
+
+            // Détecte quelles touches sont relâchées
+            function relacherTouche(event) {
+                //Enlever les comportements par défaut du navigateur
+                event.preventDefault();
+                //Enregistrer si une touche gauche/droite est relâchée
+                if (event.keyCode == 39) {
+                    //flèche droite
+                    fleches.droite = false;
+                    poisson.img.src="images/arretDroite.png";
+                    
+                }
+                if (event.keyCode == 37) {
+                    //flèche gauche
+                    fleches.gauche = false;
+                    poisson.img.src="images/arretGauche.png";
+                    
+                }    if (event.keyCode == 38) {
+                    //flèche haut
+                    fleches.haut = false;
+                }
+                if (event.keyCode == 40) {
+                    //flèche bas
+                    fleches.bas = false;
+                }
+                
+            }
+            function detecterCollision(leRectangle, leCercle) {
+                //Calculs du rayon et des coordonnées x et y du centre du cercle
+                let rayonCercle = leCercle.largeur / 2;
+                let centreX_duCercle = leCercle.x + rayonCercle;
+                let centreY_duCercle = leCercle.y + rayonCercle;
+
+                //La problématique est avec les coins des images
+                //Il faut donc vérifier de quel côté du rectangle se situe le cercle?
+                //Le code va d'abord tester quel coin du rectangle est le plus proche du cercle,
+                let coinX = centreX_duCercle;
+                let coinY = centreY_duCercle;
+                if (centreX_duCercle < leRectangle.x) {
+                    coinX = leRectangle.x; //coin gauche
+                } else if (centreX_duCercle > leRectangle.x + leRectangle.largeur) {
+                    coinX = leRectangle.x + leRectangle.largeur; // coin droit
+                }
+
+                if (centreY_duCercle < leRectangle.y) {
+                    coinY = leRectangle.y; // coin supérieur
+                } else if (centreY_duCercle > leRectangle.y + leRectangle.hauteur) {
+                    coinY = leRectangle.y + leRectangle.hauteur; // coin inférieur
+                }
+
+                //Maintenant que nous savons quel coin vérifier, nous utilisons
+                //le théorème de Pythagore en utilisant le centre du cercle et le coin identifié
+                let distanceX = centreX_duCercle - coinX;
+                let distanceY = centreY_duCercle - coinY;
+                let distanceXY = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+
+                //I y a une détection de collision si la distanceXY est plus petite que le rayon du cercle.
+                if (distanceXY <= rayonCercle) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+        </script>
